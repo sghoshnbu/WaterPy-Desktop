@@ -8,10 +8,17 @@ jobs:
       - name: Unzip source
         shell: pwsh
         run: |
-          $zip = Get-ChildItem -Filter "WaterPyDesktop-source-*.zip" | Sort-Object Name | Select-Object -Last 1
-          Expand-Archive -Path $zip.FullName -DestinationPath src
-          $dir = Get-ChildItem src -Directory | Select-Object -First 1
-          "APPDIR=$($dir.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          $main = Get-ChildItem -Recurse -Filter main.py | Where-Object { Test-Path (Join-Path $_.DirectoryName "waterpy") } | Select-Object -First 1
+          if (-not $main) {
+            $zip = Get-ChildItem -Recurse -Filter *.zip | Sort-Object LastWriteTime | Select-Object -Last 1
+            if (-not $zip) { throw "No .zip found in the repository." }
+            Write-Host "Using $($zip.FullName)"
+            Expand-Archive -Path $zip.FullName -DestinationPath src -Force
+            $main = Get-ChildItem src -Recurse -Filter main.py | Where-Object { Test-Path (Join-Path $_.DirectoryName "waterpy") } | Select-Object -First 1
+          }
+          if (-not $main) { throw "The zip does not contain main.py and the waterpy folder." }
+          Write-Host "Project folder: $($main.DirectoryName)"
+          "APPDIR=$($main.DirectoryName)" | Out-File -FilePath $env:GITHUB_ENV -Append
       - uses: actions/setup-python@v5
         with:
           python-version: "3.15"
